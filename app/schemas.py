@@ -38,3 +38,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     uid: Optional[str] = None
+
+class VoteRequest(BaseModel):
+    pid: int
+    up: bool
+
+class VoteResponse(BaseModel):
+    uid: int
+    pid: int
+    class Config:
+        orm_mode = True
