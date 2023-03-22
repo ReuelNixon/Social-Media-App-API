@@ -1,7 +1,7 @@
 from typing import List
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, utils
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -101,6 +101,7 @@ def getUsers(db: Session = Depends(get_db)):
 
 @app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 def createUser(user: schemas.UserRequest, db: Session = Depends(get_db)):
+    user.password = utils.hash(user.password)
     new_user = models.User(**user.dict())
     db.add(new_user)
     db.commit()
