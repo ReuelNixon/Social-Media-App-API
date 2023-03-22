@@ -1,14 +1,17 @@
 from typing import List, Optional
 from fastapi import Depends, APIRouter, HTTPException, Response, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from .. import models, schemas, oauth2
 from ..database import get_db
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
-@router.get("/", response_model=List[schemas.PostResponse])
+
+@router.get("/", response_model=List[schemas.PostWithVotesResponse])
 def getPosts(db: Session = Depends(get_db), current_user: schemas.UserResponse = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: Optional[str] = None):
-    posts = db.query(models.Post).filter(models.Post.title.contains(search) if search else True).offset(skip).limit(limit).all()
+    # posts = db.query(models.Post).filter(models.Post.title.contains(search) if search else True).offset(skip).limit(limit).all()
+    posts = db.query(models.Post, func.count(models.Vote.pid).label('votes')).outerjoin(models.Vote, models.Vote.pid == models.Post.id).group_by(models.Post.id).filter(models.Post.title.contains(search) if search else True).offset(skip).limit(limit).all()
     return posts
 
     # cursor.execute("SELECT * FROM posts")
@@ -31,9 +34,10 @@ def createPost(post: schemas.PostRequest, db: Session = Depends(get_db), current
     # return {'data': cursor.fetchone()}
 
 
-@router.get("/{id}", response_model=schemas.PostResponse)
+@router.get("/{id}", response_model=schemas.PostWithVotesResponse)
 def getPost(id: int, db: Session = Depends(get_db), current_user: schemas.UserResponse = Depends(oauth2.get_current_user)):
-    post = db.query(models.Post).filter(models.Post.id == id).first()
+    # post = db.query(models.Post).filter(models.Post.id == id).first()
+    post = db.query(models.Post, func.count(models.Vote.pid).label('votes')).outerjoin(models.Vote, models.Vote.pid == models.Post.id).group_by(models.Post.id).filter(models.Post.id == id).first()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id {id} not found")
