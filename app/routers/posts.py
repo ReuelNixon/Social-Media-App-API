@@ -7,7 +7,7 @@ from ..database import get_db
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 @router.get("/", response_model=List[schemas.PostResponse])
-def getPosts(db: Session = Depends(get_db)):
+def getPosts(db: Session = Depends(get_db), current_user: schemas.UserResponse = Depends(oauth2.get_current_user)):
     posts = db.query(models.Post).all()
     return posts
 
@@ -18,7 +18,9 @@ def getPosts(db: Session = Depends(get_db)):
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.PostResponse)
 def createPost(post: schemas.PostRequest, db: Session = Depends(get_db), current_user: schemas.UserResponse = Depends(oauth2.get_current_user)):
-    new_post = models.Post(**post.dict())
+    post_dict = post.dict()
+    post_dict['uid'] = current_user.id
+    new_post = models.Post(**post_dict)
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -30,7 +32,7 @@ def createPost(post: schemas.PostRequest, db: Session = Depends(get_db), current
 
 
 @router.get("/{id}", response_model=schemas.PostResponse)
-def getPost(id: int, db: Session = Depends(get_db)):
+def getPost(id: int, db: Session = Depends(get_db), current_user: schemas.UserResponse = Depends(oauth2.get_current_user)):
     post = db.query(models.Post).filter(models.Post.id == id).first()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -52,6 +54,9 @@ def updatePost(id: int, post: schemas.PostRequest, db: Session = Depends(get_db)
     if postFromDB is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id {id} not found")
+    if postFromDB.uid != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="You are not allowed to edit this post")
     postQuery.update(post.dict())
     db.commit()
     return postQuery.first()
@@ -72,6 +77,9 @@ def deletePost(id: int, db: Session = Depends(get_db), current_user: schemas.Use
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id {id} not found")
+    if post.uid != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="You are not allowed to delete this post")
     db.delete(post)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
